@@ -1,3 +1,6 @@
+use std::fmt;
+use std::error::Error;
+
 #[derive(Debug)]
 pub enum LibgoldilockErrors {
     DecodeError,
@@ -5,5 +8,14 @@ pub enum LibgoldilockErrors {
     DecodeSignatureError,
     InvalidLengthError,
     InvalidPubkeyLengthError,
-    InvalidSignatureLengthError
+    InvalidSignatureLengthError,
+    InvalidSignatureError,
 }
+
+impl fmt::Display for LibgoldilockErrors {
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> { 
+        todo!() 
+    }
+}
+
+impl Error for LibgoldilockErrors {}
