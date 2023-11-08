@@ -45,6 +45,12 @@ impl SecretKey {
 
         Self { key }
     }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        Self {
+            key: bytes.try_into().expect("ED448: Wrong Private Key Length"),
+        }
+    }
 }
 
 impl From<SecretKey> for SigningKey {
