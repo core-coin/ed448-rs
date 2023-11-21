@@ -11,7 +11,7 @@ mod karatsuba_32;
 mod karatsuba_square_32;
 mod scalar;
 
-use errors::LibgoldilockErrors;
+use crate::errors::LibgoldilockErrors;
 use goldilocks::{ed448_derive_public, ed448_sign, hex_to_private_key};
 use rand::{CryptoRng, Rng};
 
@@ -19,17 +19,17 @@ pub trait PrehashSigner<S> {
     fn sign_prehash(&self, prehash: &[u8]) -> Result<S, LibgoldilockErrors>;
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Copy)]
 pub struct SecretKey {
     key: [u8; 57],
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Copy)]
 pub struct VerifyingKey {
     key: [u8; 57],
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Copy)]
 pub struct SigningKey {
     secret_key: SecretKey,
     verifying_key: VerifyingKey,
