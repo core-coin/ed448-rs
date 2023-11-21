@@ -19,17 +19,17 @@ pub trait PrehashSigner<S> {
     fn sign_prehash(&self, prehash: &[u8]) -> Result<S, LibgoldilockErrors>;
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Copy)]
 pub struct SecretKey {
     key: [u8; 57],
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Copy)]
 pub struct VerifyingKey {
     key: [u8; 57],
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Copy)]
 pub struct SigningKey {
     secret_key: SecretKey,
     verifying_key: VerifyingKey,
