@@ -146,6 +146,17 @@ impl PrehashSigner<Signature> for SigningKey {
     }
 }
 
+impl TryFrom<&[u8]> for Signature {
+    type Error = LibgoldilockErrors;
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let sig: [u8; 171] = value
+            .try_into()
+            .map_err(|_| LibgoldilockErrors::InvalidLengthError)?;
+
+        Ok(Self { sig })
+    }
+}
+
 impl Signature {
     pub fn as_slice(&self) -> &[u8] {
         &self.sig
