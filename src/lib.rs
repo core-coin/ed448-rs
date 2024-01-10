@@ -84,6 +84,9 @@ impl SigningKey {
         }
     }
 
+    /// # Panics
+    ///
+    /// This function will panic if the slice is not exactly 57 bytes
     pub fn from_slice(s: &[u8]) -> Self {
         let mut private_key: [u8; 57] = [0; 57];
         private_key.copy_from_slice(s);
