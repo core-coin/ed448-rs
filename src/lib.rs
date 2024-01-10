@@ -99,6 +99,11 @@ impl SigningKey {
 
     pub fn from_bytes(s: &[u8]) -> Result<Self, LibgoldilockErrors> {
         let mut private_key: [u8; 57] = [0; 57];
+
+        if s.len() != 57 {
+            return Err(LibgoldilockErrors::InvalidPrivKeyLengthErrro(s.len()))
+        }
+
         private_key.copy_from_slice(s);
         let public_key = ed448_derive_public(&private_key);
         let secret_key = SecretKey { key: private_key };

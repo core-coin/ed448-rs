@@ -1,21 +1,28 @@
-use std::fmt;
-use std::error::Error;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum LibgoldilockErrors {
+    #[error("DecodeErrro")]
     DecodeError,
+
+    #[error("DecodePubkeyError")]
     DecodePubkeyError,
+
+    #[error("DecodeSignatureError")]
     DecodeSignatureError,
+
+    #[error("InvalidLengthError")]
     InvalidLengthError,
+
+    #[error("Invalid PrivateKey Length, expected: 57 bytes, got: {0} bytes")]
+    InvalidPrivKeyLengthErrro(usize),
+
+    #[error("InvalidPubkeyLengthError")]
     InvalidPubkeyLengthError,
+
+    #[error("InvalidSignatureLengthError")]
     InvalidSignatureLengthError,
+
+    #[error("InvalidSignatureError")]
     InvalidSignatureError,
 }
-
-impl fmt::Display for LibgoldilockErrors {
-    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> { 
-        todo!() 
-    }
-}
-
-impl Error for LibgoldilockErrors {}
