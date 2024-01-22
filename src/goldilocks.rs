@@ -301,6 +301,15 @@ mod tests {
         }
     }
 
+    #[test]
+    pub fn test_incorrect_public_key() {
+        let sig = hex_to_signature("611d178b128095022653965eb0ed3bc8bbea8e7891b5a121a102a5b29bb895770d204354dbbc67c5567186f92cdb58a601397dfe0022e0ce002c1333b6829c37c732fb909501f719df200ceaaa0e0a1533dc22e4c9c999406c071fee2858bc7c76c66d113ff1ac739564d465cd541b0d1e00");
+        let pk = hex_to_private_key("3761457fcdd53dba3dea5848c43aa54fe468284319f032945a3acb9bd4cd0fa7b7c901d978e9acd9eca43fa5b3c32b648c33dcc3f3169e8081");
+        let message = hex_to_message_hash("f092a4af1f2103fe7be067df44370097c444f3bf877783ba56f21cf70ba365a3");
+        let result = ed448_verify(&pk, &sig, &message);
+        assert_eq!(result, Err(LibgoldilockErrors::DecodePubkeyError));
+    }
+
     // #[test]
     // pub fn test_ed448_verify() {
     //     let mut sig = hex_to_signature("fe25200421dd73065668979b4cedc19ddd8536db632d4bc61a569cc07906cc9485c2b1999dcd2234d18e7393b5ec8f21802bd76b6fddb08b808be5264c2a7992474e7efa947019dedb0a0ab5405313837c2270f7b56dfe57b5ccbe6df20f5866231b1ce0df77aeb603944500d0c5e22b3000");

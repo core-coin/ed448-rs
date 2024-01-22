@@ -97,9 +97,6 @@ pub fn dsa_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> Result<bool, Lib
     let responce_scalar = decode_long(&sig2);
 
     let pk = p2.point_double_scalamul_non_secret(&responce_scalar, &challenge_scalar);
-    // println!("{:?}", pk);
-    // println!("{:?}", rPoint);
-    // rPoint.eq(&pk)
 
     Ok(r_point.mod_equal(&pk))
 }
