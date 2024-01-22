@@ -1,3 +1,4 @@
+use crate::constants32::DECAF_FALSE;
 use crate::errors::LibgoldilockErrors;
 use crate::{
     bignumber::*,
@@ -553,7 +554,7 @@ pub fn eddsa_like_decode(src_org: &[u8]) -> Result<TwistedExtendedPoint, Libgold
     p.t = mul(&b, &d);
 
     let ok = p.is_on_curve();
-    if !ok {
+    if !ok || succ == DECAF_FALSE {
         return Err(LibgoldilockErrors::DecodeError);
     }
 
