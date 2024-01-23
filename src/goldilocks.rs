@@ -152,6 +152,11 @@ pub fn ed448_sign(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
 }
 
 pub fn ed448_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> Result<bool, LibgoldilockErrors> {
+    let zero_public_key: [u8; 57] = [0; 57];
+    let zero_signature: [u8; 114] = [0; 114];
+    if pubkey == &zero_public_key && sig == &zero_signature {
+        return Err(LibgoldilockErrors::InvalidSignatureError);
+    }
     dsa_verify(pubkey, sig, message)
 }
 
@@ -308,6 +313,15 @@ mod tests {
         let message = hex_to_message_hash("f092a4af1f2103fe7be067df44370097c444f3bf877783ba56f21cf70ba365a3");
         let result = ed448_verify(&pk, &sig, &message);
         assert_eq!(result, Err(LibgoldilockErrors::DecodePubkeyError));
+    }
+
+    #[test]
+    pub fn test_zero_public_and_signature() {
+        let sig = hex_to_signature("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+        let pk = hex_to_private_key("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+        let message = hex_to_message_hash("f092a4af1f2103fe7be067df44370097c444f3bf877783ba56f21cf70ba365a3");
+        let result = ed448_verify(&pk, &sig, &message);
+        assert_eq!(result, Err(LibgoldilockErrors::InvalidSignatureError));
     }
 
     // #[test]
