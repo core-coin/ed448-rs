@@ -165,6 +165,12 @@ pub fn ed448_verify_with_error(
     sig: &[u8],
     message: &[u8],
 ) -> Result<(), LibgoldilockErrors> {
+    let zero_public_key: [u8; 57] = [0; 57];
+    let zero_signature: [u8; 114] = [0; 114];
+    if pubkey == &zero_public_key || sig == &zero_signature {
+        return Err(LibgoldilockErrors::InvalidSignatureError);
+    }
+
     let is_ok = dsa_verify(pubkey, sig, message)?;
     if !is_ok {
         return Err(LibgoldilockErrors::InvalidSignatureError);
