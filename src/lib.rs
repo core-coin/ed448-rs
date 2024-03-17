@@ -1,5 +1,6 @@
 #![allow(clippy::should_implement_trait)]
 mod bignumber;
+mod chaincodes;
 mod constants32;
 mod decaf_combs_32;
 mod decaf_wnaf_table;
