@@ -1,4 +1,5 @@
 use pbkdf2::pbkdf2_hmac;
+use rand::RngCore;
 use sha3::Sha3_512;
 
 use crate::{extended_point::{add_extended_to_extended, eddsa_like_decode, precomputed_scalar_mul}, goldilocks::{ed448_derive_public, ed448_sign, secret_to_public, PrivateKey, PublicKey}, scalar::{decode_long, halve}};
@@ -166,6 +167,13 @@ pub fn public_to_child_public(key: &ExtendedPublic, index: u32) -> ExtendedPubli
     child
 }
 
+pub fn generate_seed() -> [u8; 64] {
+    let mut seed: [u8; 64] = [0u8; 64];
+    rand::thread_rng().fill_bytes(&mut seed);
+
+    seed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,4 +244,20 @@ mod tests {
             extended_private_to_hex(&child_key)
         );
     }
+
+    #[test]
+    pub fn test_random_diamond() {
+        let seed = generate_seed();
+        let private_master = seed_to_extended_private(&seed);
+        let public_master = extended_private_to_public(&private_master);
+        let private_child = private_to_child_private(&private_master, 0);
+        let public_child1 = public_to_child_public(&public_master, 0);
+        let public_child2 = extended_private_to_public(&private_child);
+
+        assert_eq!(
+            public_child1,
+            public_child2
+        );
+    }
+
 }
