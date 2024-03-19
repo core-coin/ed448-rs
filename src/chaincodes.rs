@@ -24,6 +24,52 @@ pub fn sha512_hash(password: &[u8], salt: &[u8]) -> [u8; 57] {
     result
 }
 
+fn concatenate_and_hex(prefix: u8, key: &[u8], index: u32, salt: &[u8]) -> [u8; 57] {
+    if key.len() != 57 {
+        panic!("Wrong key length");
+    }
+
+    let mut p: [u8; 62] = [0u8; 62];
+    p[0] = prefix;
+    p[1.. 58].copy_from_slice(&key[0..57]);
+
+    let mut i = 58;
+    let mut index_copy = index;
+    while i < 62 {
+        p[i] = (index_copy & 0xff) as u8;
+        index_copy >>= 8;
+        i += 1;
+    };
+
+    sha512_hash(&p, &salt)
+}
+
+fn add_two_secrets(secret1: &[u8], secret2: &[u8]) -> [u8; 57] {
+    if secret1.len() != 57 || secret2.len() != 57 {
+        panic!("Wrong key length");
+    };
+
+    let mut result: [u8; 57] = [0u8; 57];
+    let mut count: u16 = 0;
+
+    for i in 0..57 {
+        count += secret1[i] as u16 + secret2[i] as u16;
+        result[i] = (count & 0xff) as u8;
+        count >>= 8;
+    }
+
+    result
+
+}
+
+fn clamp_template(hash: &mut [u8]) {
+    hash[56] = 0;
+    hash[55] = 0;
+    hash[54] = 0;
+    hash[53] = 0;
+    hash[0] &= 0xfc;
+}
+
 pub fn seed_to_extended_private(seed: &[u8]) -> ExtendedPrivate {
     if seed.len() != 64 {
         panic!("Seed must be 64 bytes");
@@ -57,6 +103,34 @@ pub fn extended_private_to_public(key: &ExtendedPrivate) -> ExtendedPublic {
     extended_public[57..114].copy_from_slice(&public);
 
     extended_public
+}
+
+pub fn private_to_child_private(key: &ExtendedPrivate, index: u32) -> ExtendedPrivate {
+    let mut child_key: ExtendedPrivate = [0u8; 114];
+
+    if index >= 0x80000000 {
+        let mut hash = concatenate_and_hex(1, &key[57..114], index, &key[0..57]);
+        child_key[0..57].copy_from_slice(&hash[0..57]);
+
+        hash = concatenate_and_hex(0, &key[57..114], index, &key[0..57]);
+        clamp_template(&mut hash[..]);
+        hash = add_two_secrets(&key[57..114], &hash);
+        child_key[57..114].copy_from_slice(&hash[0..57]);
+    } else {
+        let mut private_key: [u8; 57] = [0u8; 57];
+        private_key.copy_from_slice(&key[57..114]);
+        let public_key = ed448_derive_public(&private_key);
+
+        let mut hash = concatenate_and_hex(3, &public_key[0..57], index, &key[0..57]);
+        child_key[0..57].copy_from_slice(&hash[0..57]);
+
+        hash = concatenate_and_hex(2, &public_key[0..57], index, &key[0..57]);
+        clamp_template(&mut hash[..]);
+        hash = add_two_secrets(&key[57..114], &hash);
+        child_key[57..114].copy_from_slice(&hash[0..57]);
+    }
+
+    child_key
 }
 
 #[cfg(test)]
@@ -100,4 +174,22 @@ mod tests {
         );
     }
 
+    #[test]
+    pub fn test_pivate_to_child_private() {
+        let mut parent_key = hex_to_extended_private("757a4a352e3aafdad7f65f6bf4f150800d334ffcac56e719cc3412ae6ae5a2f547f2b587785ac52c0136a09f05bbe43b6b000e3f9c49f7f7c76a103854fa8597b9514a0d6b11e0e972d492c0fd61afe5fb5baa38d51406ba333c7e5a7c43a121b694d6694047e6433e05c372a5eb78a48e99");
+        let mut child_key = private_to_child_private(&parent_key, 0);
+
+        assert_eq!(
+            "b8254111ddf243fd897b44878678ff15d16763c7939e86512fd2b6d6535fde62ec6c94dd61fc76033d94e001ea26ef3950a0edd2ef74713760e63a36576ee565e08646a99c2062ebdf773167dc533a0a3a1b0d929d8b77b5faf7d54d557f3b537eeb572b04b04d246fb63154381679a48e99",
+            extended_private_to_hex(&child_key)
+        );
+
+        parent_key = hex_to_extended_private("88b8592017482e0d85a8c405b84e12ba3a8ac552198216b0da811adc368589cc86a8bb38c67c766f9a942e7cedf5a6a36338f3d5bdd9466e2554b229028a76f79a18f4171fea287db096f05cc62ff3246ec70a2ebbf896b094350650846703183c09a13790e93fd3110c3ec0fe338daf93ba");
+        child_key = private_to_child_private(&parent_key, 0x80000000);
+
+        assert_eq!(
+            "bd9c963ce9ac0fb9da7f9dfa0ea84251ed6f3eba924858bb7b2f9eb3a66aa4fb42a87a0d5b05c9a48c442b480477d17cd89b8679acd6ccdf02fca262c2f9a158d51bea28d0b2724f237560f65a3b8ae98215dc97ade43beb1e3dad4fc12ec8a81da661db0ab6b94f1c566e38f16e8daf93ba",
+            extended_private_to_hex(&child_key)
+        );
+    }
 }
