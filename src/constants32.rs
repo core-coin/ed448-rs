@@ -25,7 +25,7 @@ pub type Serialized = [u8; FIELD_BYTES];
 const FIELD_BITS: usize = 448;
 //const edwardsD: usize  = -39081;
 //const twistedD: usize  = (edwardsD) - 1;
-const EFF_D: usize = 39082;
+pub const EFF_D: usize = 39082;
 
 pub const FIELD_BYTES: usize = FIELD_BITS / 8; // 56
 pub const SCALAR_SER_BYTES: usize = 56;

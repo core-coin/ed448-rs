@@ -1,7 +1,7 @@
 use pbkdf2::pbkdf2_hmac;
 use sha3::Sha3_512;
 
-use crate::goldilocks::{ed448_derive_public, ed448_sign, secret_to_public, PrivateKey, PublicKey};
+use crate::{extended_point::{add_extended_to_extended, eddsa_like_decode, precomputed_scalar_mul}, goldilocks::{ed448_derive_public, ed448_sign, secret_to_public, PrivateKey, PublicKey}, scalar::{decode_long, halve}};
 
 pub type ExtendedPrivate = [u8; 114];
 pub type ExtendedPublic = [u8; 114];
@@ -59,6 +59,19 @@ fn add_two_secrets(secret1: &[u8], secret2: &[u8]) -> [u8; 57] {
     }
 
     result
+}
+
+fn shift_public(public: &[u8], shift: &[u8]) -> [u8; 57] {
+    let mut r = decode_long(&shift);
+    r = halve(r);
+    r = halve(r);
+    let p2 = precomputed_scalar_mul(r);
+
+    let p1 = eddsa_like_decode(&public).expect("Decoding error");
+
+    let p = add_extended_to_extended(&p1, &p2);
+
+    p.eddsa_like_encode()
 
 }
 
@@ -133,6 +146,26 @@ pub fn private_to_child_private(key: &ExtendedPrivate, index: u32) -> ExtendedPr
     child_key
 }
 
+pub fn public_to_child_public(key: &ExtendedPublic, index: u32) -> ExtendedPublic {
+    if index >= 0x80000000 {
+        panic!("Trying to derive hardhened key from public")
+    }
+
+    let mut child: ExtendedPublic = [0u8; 114];
+    let mut hash = concatenate_and_hex(3, &key[57..114], index, &key[0..57]);
+    child[0..57].copy_from_slice(&hash[0..57]);
+
+    hash = concatenate_and_hex(2, &key[57..114], index, &key[0..57]);
+    clamp_template(&mut hash);
+    let mut public: PublicKey = [0u8; 57];
+    public.copy_from_slice(&key[57..114]);
+    let shifted_key = shift_public(&public, &hash);
+
+    child[57..114].copy_from_slice(&shifted_key[0..57]);
+
+    child
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,6 +222,17 @@ mod tests {
 
         assert_eq!(
             "bd9c963ce9ac0fb9da7f9dfa0ea84251ed6f3eba924858bb7b2f9eb3a66aa4fb42a87a0d5b05c9a48c442b480477d17cd89b8679acd6ccdf02fca262c2f9a158d51bea28d0b2724f237560f65a3b8ae98215dc97ade43beb1e3dad4fc12ec8a81da661db0ab6b94f1c566e38f16e8daf93ba",
+            extended_private_to_hex(&child_key)
+        );
+    }
+
+    #[test]
+    pub fn test_public_to_child_public() {
+        let parent_key = hex_to_extended_private("08288c75a01cafb05193567fb285b66767a6d393b7763f3f085f140ac0ad59b56dfdae70533f112a67cbd359910b2c5f1c8916bf6f593a5db4e7e1d0e85a354edc803d39f89923aadd362da91693cbb01206b86b3173039e18513a9964f96f34aa27b275d9a81b50905ebc860905e1c51700");
+        let child_key = public_to_child_public(&parent_key, 0);
+
+        assert_eq!(
+            "0c051354b0efede7fa00124dd9e5a37bb7f0edf157b8139f64be5f6cac2c5edc7c60e1c4245136e9b9b8ea7f9ef5ab20032f6c6f2dba07d7f44a5aa538883ce7a9115337293eedb620ee031b71e994936557e58ef1dbafd1f91413c154b8713c43150a14e11c0ce0ba1d6d55bd26802d2080",
             extended_private_to_hex(&child_key)
         );
     }
