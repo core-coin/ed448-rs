@@ -1,7 +1,11 @@
+use crate::chaincodes::seed_to_extended_private;
+
 const PRIVATE_MAINNET_VERSION: &str = "0658299c";
 const PUBLIC_MAINNET_VERSION: &str = "06582f87";
 const PRIVATE_TESTNET_VERSION: &str = "05e3c9a2";
 const PUBLIC_TESTNET_VERSION: &str = "05e3cf8d";
+const MAINNET: u8 = 0;
+const DEVIN: u8 = 1;
 
 pub struct XKey {
     key: [u8; 57],
@@ -80,6 +84,37 @@ impl XKey {
 
         bs58::encode(bytes_key).into_string()
     }
+
+    pub fn from_seed(seed: &[u8], network: u8) -> XKey {
+        let extended_private = seed_to_extended_private(seed);
+
+        let mut chaincode: [u8; 57] = [0u8; 57];
+        let mut key: [u8; 57] = [0u8; 57];
+
+        chaincode.clone_from_slice(&extended_private[0..57]);
+        key.clone_from_slice(&extended_private[57..114]);
+
+        let mut version: [u8; 4] = [0u8; 4];
+        if network == MAINNET {
+            let a = hex::decode(PRIVATE_MAINNET_VERSION).expect("Decode error");
+            version[0..4].clone_from_slice(&a[0..4]);
+        } else if network == DEVIN {
+            let a = hex::decode(PRIVATE_TESTNET_VERSION).expect("Decode error");
+            version[0..4].clone_from_slice(&a[0..4]);
+        } else {
+            panic!("Invalid network");
+        }
+
+        return XKey {
+            key: key,
+            version: version,
+            child_number: [0u8; 4],
+            fingerprint: [0u8; 4],
+            chaincode: chaincode,
+            depth: 0,
+            is_private: true
+        }
+    }
 }
 
 fn hash_double_sha_256(b: &[u8]) -> String {
@@ -116,4 +151,14 @@ mod tests {
         assert_eq!(key_string, decoded);
     }
 
+    #[test]
+    pub fn test_key_from_seed() {
+        let seed_string = "6bc0169565eecbc8e62259959534a67684adbd4c229cc8830405fe81f60c7b896a273421c9587f4b3321ab8353bf7178b8f383ce07f916de7abebabfef0f5fee";
+        let seed = &hex::decode(seed_string).expect("Decode error")[0..64];
+        let key = XKey::from_seed(&seed, MAINNET);
+        assert_eq!(
+            "xprv44jU3WStrxLpqTPjfJhEm5YWSnxHXWT1nxAz2LZucufEACdLtu2kbMFhkrHk4QzY3VNv1J4JpL9KQykmWeAaacHkL9azdG1uxDzG9cip6ngsFUs2kacE1eAfFVFTBMDsPR1BAy3NMpE7jZuTXfLL3ippnRRBuoJ6BcNykWCJHJ6e6Y",
+            key.to_base_58()
+        );
+    }
 }
