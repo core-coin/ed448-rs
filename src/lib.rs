@@ -11,6 +11,7 @@ pub mod goldilocks;
 mod karatsuba_32;
 mod karatsuba_square_32;
 mod scalar;
+mod xpriv;
 
 use crate::errors::LibgoldilockErrors;
 use goldilocks::{ed448_derive_public, ed448_sign, hex_to_private_key};
