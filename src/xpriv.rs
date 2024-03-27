@@ -1,4 +1,5 @@
-use crate::chaincodes::seed_to_extended_private;
+use crate::{chaincodes::{private_to_child_private, public_to_child_public, seed_to_extended_private}, goldilocks::ed448_derive_public};
+use ripemd::{Ripemd160, Digest};
 
 const PRIVATE_MAINNET_VERSION: &str = "0658299c";
 const PUBLIC_MAINNET_VERSION: &str = "06582f87";
@@ -115,6 +116,56 @@ impl XKey {
             is_private: true
         }
     }
+
+    pub fn get_child(&self, index: u32) -> XKey {
+        let mut extended_key: [u8; 114] = [0u8; 114];
+        extended_key[0..57].clone_from_slice(&self.chaincode);
+        extended_key[57..114].clone_from_slice(&self.key);
+        if self.is_private {
+            extended_key = private_to_child_private(&extended_key, index);
+        } else {
+            extended_key = public_to_child_public(&extended_key, index);
+        }
+
+        let mut chaincode: [u8; 57] = [0u8; 57];
+        let mut key: [u8; 57] = [0u8; 57];
+        chaincode.clone_from_slice(&extended_key[0..57]);
+        key.clone_from_slice(&extended_key[57..114]);
+
+        let mut public: [u8; 57] = [0u8; 57];
+        if self.is_private {
+            let mut private: [u8; 57] = [0u8; 57];
+            private[..].clone_from_slice(&self.key[..]);
+            public = ed448_derive_public(&private);
+        } else {
+            public[..].clone_from_slice(&self.key[..]);
+        }
+        let fingerprint = hash160(&public);
+
+        let mut version: [u8; 4] = [0u8; 4];
+        version.clone_from_slice(&self.version[0..4]);
+
+        let mut child_number: [u8; 4] = [0u8; 4];
+        let mut i = 4;
+        let mut index1 = index;
+        while i > 0 {
+            child_number[i - 1] = (index1 % 256) as u8;
+            index1 /= 256;
+            i -= 1; 
+        }
+
+        println!("{:?}", key);
+
+        return XKey {
+            key: key,
+            version: version,
+            child_number: child_number,
+            fingerprint: fingerprint,
+            chaincode: chaincode,
+            depth: self.depth + 1,
+            is_private: self.is_private
+        }
+    }
 }
 
 fn hash_double_sha_256(b: &[u8]) -> String {
@@ -124,6 +175,18 @@ fn hash_double_sha_256(b: &[u8]) -> String {
     d = sha256::digest(d_bytes);
 
     d
+}
+
+fn hash160(b: &[u8]) -> [u8; 4]{
+    let mut d: String = sha256::digest(b);
+    let mut d_bytes = hex::decode(d).expect("Decode error");
+
+    let mut hasher = ripemd::Ripemd160::new();
+    hasher.update(&d_bytes);
+    let mut result: [u8; 4] = [0u8; 4];
+    result.clone_from_slice(&hasher.finalize()[..4]);
+
+    result
 }
 
 #[cfg(test)]
@@ -159,6 +222,17 @@ mod tests {
         assert_eq!(
             "xprv44jU3WStrxLpqTPjfJhEm5YWSnxHXWT1nxAz2LZucufEACdLtu2kbMFhkrHk4QzY3VNv1J4JpL9KQykmWeAaacHkL9azdG1uxDzG9cip6ngsFUs2kacE1eAfFVFTBMDsPR1BAy3NMpE7jZuTXfLL3ippnRRBuoJ6BcNykWCJHJ6e6Y",
             key.to_base_58()
+        );
+    }
+
+    #[test]
+    pub fn test_child_xpriv() {
+        let xpriv_string = "xprv44jU3WStrxLpqTPjfJhEm5YWSnxHXWT1nxAz2LZucufEACdLtu2kbMFhkrHk4QzY3VNv1J4JpL9KQykmWeAaacHkL9azdG1uxDzG9cip6ngsFUs2kacE1eAfFVFTBMDsPR1BAy3NMpE7jZuTXfLL3ippnRRBuoJ6BcNykWCJHJ6e6Y";
+        let key = XKey::from_base_58(&xpriv_string);
+        let key1 = key.get_child(1);
+        assert_eq!(
+            key1.to_base_58(),
+            "xprv46fNiru8i8kJH4CvjEZwp4d21pG9UidG9CEKHkt8Uio2D86kK5aNUa8A9nyP2MPPsLdUpfEHNnWbAKUyqNkVL9odLx8TuHWnB8iadD6ojtbnmAyQ7vkZLBMPq8jL1yCGC6MJKxyR2Axfr9rGUM8bJKaSpMwyW66NCYJiUBin1TKLv1"
         );
     }
 }
