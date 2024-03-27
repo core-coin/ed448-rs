@@ -235,4 +235,15 @@ mod tests {
             "xprv46fNiru8i8kJH4CvjEZwp4d21pG9UidG9CEKHkt8Uio2D86kK5aNUa8A9nyP2MPPsLdUpfEHNnWbAKUyqNkVL9odLx8TuHWnB8iadD6ojtbnmAyQ7vkZLBMPq8jL1yCGC6MJKxyR2Axfr9rGUM8bJKaSpMwyW66NCYJiUBin1TKLv1"
         );
     }
+
+    #[test]
+    pub fn test_child_xpub() {
+        let xpriv_string = "xpub5qaJDytXEfWWEb5zBzW8YBZ5ZbmBrV2z7DRtcR2qqqRM3qnDUC43XZANq9YPurzuDjjJ1xkfhsskDiaidX7z9Df5Rrtige1rcWHzTvkZGEYqUoqWREvUQshd4FRcgKTHsEFyjLTtFUL9hGVA8cYERqYQxUhcFS1Ts1a1KnPZj4g1u1";
+        let key = XKey::from_base_58(&xpriv_string);
+        let key1 = key.get_child(1);
+        assert_eq!(
+            key1.to_base_58(),
+            "xpub5sWCuLLm5quygBuBFvNqbAdb8d53ohDETTVDsqM4heZ96mFctNbfQn2qE6E2soPm3ayrqKveGLF1y4JvxFhttmAxSfRUEs89AndWx4XpE3Y9zs9L2DuUtwFrqCYj7Y97aRtdaVcuHgXYnfzqR7UuJRYy6oDLPrfBEutm25Ex1ojn4p"
+        );
+    }
 }
