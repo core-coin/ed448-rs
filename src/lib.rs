@@ -1,5 +1,6 @@
 #![allow(clippy::should_implement_trait)]
 mod bignumber;
+mod chaincodes;
 mod constants32;
 mod decaf_combs_32;
 mod decaf_wnaf_table;
@@ -10,6 +11,7 @@ pub mod goldilocks;
 mod karatsuba_32;
 mod karatsuba_square_32;
 mod scalar;
+mod xpriv;
 
 use crate::errors::LibgoldilockErrors;
 use goldilocks::{ed448_derive_public, ed448_sign, hex_to_private_key};
