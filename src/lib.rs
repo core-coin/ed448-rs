@@ -14,6 +14,7 @@ mod scalar;
 use crate::errors::LibgoldilockErrors;
 use goldilocks::{ed448_derive_public, ed448_sign, hex_to_private_key};
 use rand::{CryptoRng, Rng};
+use serdect::serde::{de, ser, Deserialize, Serialize};
 
 pub trait PrehashSigner<S> {
     fn sign_prehash(&self, prehash: &[u8]) -> Result<S, LibgoldilockErrors>;
@@ -157,5 +158,120 @@ impl PrehashSigner<Signature> for SigningKey {
 impl Signature {
     pub fn as_slice(&self) -> &[u8] {
         &self.sig
+    }
+}
+
+impl Serialize for SigningKey {
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        let s = hex::encode(&self.secret_key.key);
+        s.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SigningKey {
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        if deserializer.is_human_readable() {
+            let s = String::deserialize(deserializer)?;
+            Ok(SigningKey::from_str(&s))
+        } else {
+            Err(de::Error::custom("Expected a string"))
+        }
+    }
+}
+
+impl Serialize for SecretKey {
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        let s = hex::encode(&self.key);
+        s.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SecretKey {
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        if deserializer.is_human_readable() {
+            let s = String::deserialize(deserializer)?;
+            Ok(SecretKey::from_str(&s))
+        } else {
+            Err(de::Error::custom("Expected a string"))
+        }
+    }
+}
+
+impl Serialize for VerifyingKey {
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        let s = hex::encode(&self.key);
+        s.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for VerifyingKey {
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        if deserializer.is_human_readable() {
+            let s = String::deserialize(deserializer)?;
+            Ok(VerifyingKey::from_str(&s))
+        } else {
+            Err(de::Error::custom("Expected a string"))
+        }
+    }
+}
+
+mod tests {
+    use crate::{SecretKey, SigningKey, VerifyingKey};
+
+    #[test]
+    fn test_secret_key_serde() {
+        let key = SecretKey::from_str("010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101");
+        let serialized = serde_json::to_string(&key).unwrap();
+        assert_eq!(
+            serialized,
+            r#""010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101""#
+        );
+
+        let deserialized: SecretKey = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(key, deserialized);
+    }
+
+    #[test]
+    fn test_verifying_key_serde() {
+        let key = VerifyingKey::from_str("010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101");
+        let serialized = serde_json::to_string(&key).unwrap();
+        assert_eq!(
+            serialized,
+            r#""010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101""#
+        );
+
+        let deserialized: VerifyingKey = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(key, deserialized);
+    }
+
+    #[test]
+    fn test_signing_key_serde() {
+        let key = SigningKey::from_str("010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101");
+        let serialized = serde_json::to_string(&key).unwrap();
+        assert_eq!(
+            serialized,
+            r#""010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101""#
+        );
+
+        let deserialized: SigningKey = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(key, deserialized);
     }
 }
