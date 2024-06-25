@@ -10,5 +10,7 @@ license-file = "LICENSE"
 [dependencies]
 hex = "0.4.3"
 rand = "0.8.5"
+serdect = "0.2.0"
 sha3 = "0.10.6"
 thiserror = "1"
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
