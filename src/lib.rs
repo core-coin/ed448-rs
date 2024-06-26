@@ -68,9 +68,11 @@ impl VerifyingKey {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self { key: bytes.try_into().expect("ED448: Wrong Public Key Length")}
+        Self {
+            key: bytes.try_into().expect("ED448: Wrong Public Key Length"),
+        }
     }
-    
+
     pub fn as_bytes(&self) -> &[u8] {
         &self.key
     }
@@ -109,7 +111,7 @@ impl SigningKey {
         let mut private_key: [u8; 57] = [0; 57];
 
         if s.len() != 57 {
-            return Err(LibgoldilockErrors::InvalidPrivKeyLengthErrro(s.len()))
+            return Err(LibgoldilockErrors::InvalidPrivKeyLengthErrro(s.len()));
         }
 
         private_key.copy_from_slice(s);
@@ -280,8 +282,8 @@ mod tests {
     }
 
     #[test]
-    fn test_signing_key_from_bytes() {
-        let key = SigningKey::from_bytes(&[1; 57]).unwrap();
-        assert_eq!(key.secret_key().key, [1; 57]);
+    fn test_verifying_key_from_bytes() {
+        let key = VerifyingKey::from_bytes(&[1; 57]);
+        assert_eq!(key.key, [1; 57]);
     }
 }
