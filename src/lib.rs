@@ -67,6 +67,10 @@ impl VerifyingKey {
         Self { key }
     }
 
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        Self { key: bytes.try_into().expect("ED448: Wrong Public Key Length")}
+    }
+    
     pub fn as_bytes(&self) -> &[u8] {
         &self.key
     }
@@ -273,5 +277,11 @@ mod tests {
 
         let deserialized: SigningKey = serde_json::from_str(&serialized).unwrap();
         assert_eq!(key, deserialized);
+    }
+
+    #[test]
+    fn test_signing_key_from_bytes() {
+        let key = SigningKey::from_bytes(&[1; 57]).unwrap();
+        assert_eq!(key.secret_key().key, [1; 57]);
     }
 }
