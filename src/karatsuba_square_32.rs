@@ -290,8 +290,8 @@ pub fn karatsuba_square(a: &BigNumber) -> BigNumber {
 #[cfg(test)]
 mod tests {
 
-    use crate::{bignumber::deserialize, karatsuba_32::karatsuba_mul};
     use super::*;
+    use crate::{bignumber::deserialize, karatsuba_32::karatsuba_mul};
 
     #[test]
     pub fn test_karatsuba_square() {

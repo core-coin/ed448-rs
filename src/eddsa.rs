@@ -37,6 +37,10 @@ pub fn hash_with_dom(input: &mut Vec<u8>, output: &mut [u8]) {
 // pub fn dsa_sign(sym: &[u8]) {}
 
 pub fn dsa_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> Result<bool, LibgoldilockErrors> {
+    if sig.len() != 114 {
+        panic!("wrong signature len");
+    }
+
     let p: TwistedExtendedPoint;
     match eddsa_like_decode(pubkey) {
         Ok(point) => p = point,

@@ -3,7 +3,9 @@ use rand::RngCore;
 use crate::errors::LibgoldilockErrors;
 use crate::{
     eddsa::{clamp, dsa_verify, hash_with_dom, sha3},
-    extended_point::{precomputed_scalar_mul, TwistedExtendedPoint},
+    extended_point::{
+        add_extended_to_extended, eddsa_like_decode, precomputed_scalar_mul, TwistedExtendedPoint,
+    },
     scalar::{self, decode_long, encode, halve},
 };
 
@@ -178,6 +180,13 @@ pub fn ed448_verify_with_error(
     Ok(())
 }
 
+pub fn add_two_public(pub1: &PublicKey, pub2: &PublicKey) -> Result<PublicKey, LibgoldilockErrors> {
+    let p1 = eddsa_like_decode(pub1)?;
+    let p2 = eddsa_like_decode(pub2)?;
+
+    Ok(add_extended_to_extended(&p1, &p2).eddsa_like_encode())
+}
+
 pub fn ed448_generate_key() -> PrivateKey {
     let mut random_key: PrivateKey = [0; 57];
     rand::thread_rng().fill_bytes(&mut random_key);
@@ -297,6 +306,294 @@ mod tests {
     }
 
     #[test]
+    pub fn test_canonical_private_key_vectors() {
+        let vectors = [
+            (
+                "incrementing",
+                "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738",
+                "0411d38f9076da316fb9addcfe25f7c4d9403d125f3ef899409bed928bb9a30aeb9769b3b47ceba0d14ed5d7563ec01147fd18ab67cca295a8",
+                "18d0a70e42a742dfb561279893385061d7b4dad8f6feed4791eaab66b2f4a4f02fc09462a8bfb1842d0bac60e8a1b3e55ba2407f33226f3800",
+            ),
+            (
+                "all-01",
+                "010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101",
+                "24c7392b799ff6e0086e4fd66c58c99fb4447771d01625ed5e9cd6cae05ffa038eab7b739c1d2ff034b474b62a1fe40c3f81841c1e807f1ceb",
+                "e0758a33267939a394fb5ccb202ee851cebc2e89c91ac1289e2bfcddfd9ff9fc5694b0f569d7f7e9da16e1cde9301b29f48128b3cbd1168580",
+            ),
+            (
+                "all-02",
+                "020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202",
+                "4e8214ed3f124f0f4a713b2e57686adb349c259cd39c4d0eef22b119eec5db36b80d7ca0f7f1104b36f9f3f70054719ab546fee241a2c7fbb2",
+                "b52fd5b2cb34d6f944ab81d765fa026b63fd8448b4890d025cba17308a312ae4f31a012dc08c891e9a7c3d29dbad1aaf964e6c74073249f300",
+            ),
+        ];
+
+        for (name, private, secret, public) in vectors {
+            let pk = hex_to_private_key(private);
+            assert_eq!(pk[56] & 0x80, 0, "{name} marker bit must be clear");
+            assert_eq!(private_to_secret(&pk), hex_to_private_key(secret), "{name}");
+            assert_eq!(
+                secret_to_public(&hex_to_private_key(secret)),
+                hex_to_private_key(public),
+                "{name}"
+            );
+            assert_eq!(
+                ed448_derive_public(&pk),
+                hex_to_private_key(public),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    pub fn test_canonical_sign_verify_vectors() {
+        let vectors: [(&str, &str, &str, &[u8], &str); 3] = [
+            (
+                "empty-message",
+                "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738",
+                "18d0a70e42a742dfb561279893385061d7b4dad8f6feed4791eaab66b2f4a4f02fc09462a8bfb1842d0bac60e8a1b3e55ba2407f33226f3800",
+                b"",
+                "cb682b115cf0f0b0cf2a068acba2d0495714f2a50832739af364191c611f6983890ee133a4bf75ed2d09adc5d70f6d256b0806f3224b35d7802748b7cf55f5e9583df9f8c85db809f4877191c99ed0670ad62f54d63d7d35fddfd85efbad63554ff3ce9b847607b2f79181020880f13c1b00",
+            ),
+            (
+                "zero-byte-message",
+                "010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101",
+                "e0758a33267939a394fb5ccb202ee851cebc2e89c91ac1289e2bfcddfd9ff9fc5694b0f569d7f7e9da16e1cde9301b29f48128b3cbd1168580",
+                &[0],
+                "a94e33bb28aa3b07ac36178ebe75315b7d24f9d7cab4954b190d7369a3bd4f263510cd16e5bb939e3bbd6d0561b715c18b2c2ae4bf093a0500b2690980ddcdafaeb2e14663bd1e281c3125ef8dcaa46e8af6c2515d4e42b995c639388eb464977711e1725144ab6c4eb7215142cabb3f0c00",
+            ),
+            (
+                "text-message",
+                "020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202",
+                "b52fd5b2cb34d6f944ab81d765fa026b63fd8448b4890d025cba17308a312ae4f31a012dc08c891e9a7c3d29dbad1aaf964e6c74073249f300",
+                b"Core Ed448 compatibility test message",
+                "57c1488556a9e7e780d7630203d446f655b5f742036feb2db204ee6ffa642f2c1fa112e4bd47a289d7fa95e0df5cc8ceba45ac7ac1e251bd80e5dd228fd81a95bc1ffdb8b7936c5a69cec124a07a1ed5f40bba9b8b74576154a846a73d4a282e9ae2f8d5c15044af7aa8a2c2d38028d72c00",
+            ),
+        ];
+
+        for (name, private, public, message, signature) in vectors {
+            let pk = hex_to_private_key(private);
+            let pubkey = hex_to_private_key(public);
+            let want_sig = hex_to_signature(signature);
+            let got_sig = ed448_sign(&pk, message);
+            assert_eq!(got_sig, want_sig, "{name}");
+            assert_eq!(
+                ed448_verify(&pubkey, &got_sig, message).unwrap(),
+                true,
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    pub fn test_long_message_sign_verify_vectors() {
+        let vectors = [
+            (
+                "64-byte-message",
+                "030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303",
+                "18e2f925aef56fc05910474593ee84c932bc7ea4d352a3416f72d115e60eb58cd862f73ac50886fbaad6354a4eeb01fd9f740491fb11f59580",
+                64,
+                0,
+                "99706c0d43655cbbdb0987520c20a2c9c98fe169d6e9ada9ed9f1167a249aff06a6c56b8147f9bda815e709cb2c2291e324042a6c1b4896b809d9dc41058be1d814bee8d55cf065a010277c96ea9a39982a95d98b7a97ade70aefb79c4b9024c16b89e5129553c11b0dc8b4894712fa73700",
+            ),
+            (
+                "256-byte-message",
+                "040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404",
+                "4e15975a78604b2d6575f2d3310ca4e4f122226189f5900f744c1ead49408bdf8247843c05ba24fbb26c9b5f81c287cbbe3d3e8a3ad0231d00",
+                256,
+                1,
+                "e0ffeebb9584f0be43ab16bdb6e75b08b48f9ec7029376afc8822494434a9f85eb023af5279f0bfa466fe15eabb062008fd5baaf2c61f5b180d86a810e3bae994d563d7872e3a7f85fc0d0ed8179c027527f2ccc5bc9a237ff0d659e4834e83151c02caaa8ae031d398a17cd1ae816210300",
+            ),
+            (
+                "1023-byte-message",
+                "050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505",
+                "f4c0eecfc7f17d960823180420fb8074d882317a39a719480d3ba6e7f565fc518a4ff54ef7dca5df5de9bb3740384c84ecac265c81398c3400",
+                1023,
+                2,
+                "9ae36ecbaece22e2f779a1818672467d34961d6028601c5e32d90d2ee1fd14b7fecd0168aeb7862b3ea6879fde654aae4670f3dc27aede2200d6f10899deede10db29a115c988005c52462a4e8cea1ff3846e581cf915b6b011d670c18abe9a7b90dc93d20ff82d53812a7c57c9dbdc33c00",
+            ),
+        ];
+
+        for (name, private, public, msg_len, msg_offset, signature) in vectors {
+            let pk = hex_to_private_key(private);
+            let pubkey = hex_to_private_key(public);
+            let message = deterministic_message(msg_len, msg_offset);
+            let want_sig = hex_to_signature(signature);
+            let got_sig = ed448_sign(&pk, &message);
+            assert_eq!(got_sig, want_sig, "{name}");
+            assert_eq!(
+                ed448_verify(&pubkey, &got_sig, &message).unwrap(),
+                true,
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    pub fn test_sign_secret_and_nonce_vectors() {
+        let secret = hex_to_private_key("26ad14d91ef8f1e5bbf5a1a7e44a9532e4854f1e1346761ee9b4ed1ed103e5e05c87fd9ecd788bc879a7433a7115255b7aad667fe84ee35c28");
+        let vectors: [(&str, &str, &[u8], &str); 3] = [
+            (
+                "empty-message",
+                "66dd9754284a1b7d77c1c43bfdfe38a116bd143e7c901b8e8e4561a7ee0a401dd5120fa2b77e2a6bda3a68d5a47e34fd29cf14ce3489067602",
+                b"",
+                "a5fb561f2beb377e35bbf4d93b460ebeff3b55c1d64fffbcc2168c2d3998d310ed4f581499428ed46acfed19d7c8f5aa00b8fa88a7258e9c00f40ddd5e41cd33eb569d324d16babb5e840d60b6e52df10cbb2c6ea8bb3be49f39dace9cdfc7f606c2f4bfeef7bab2ab85fb787c8041302a00",
+            ),
+            (
+                "zero-byte-message",
+                "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738",
+                &[0],
+                "23a56dc2bd6db200aded4a2ad5cea6083f29b412c5575f3c4f14d53373f14b9cc03e37a3c49bfd445cd4766f7b14c3755cb6849ac357ca8880ca1a9bb804d0bab2227a0e1e8ca798f77aa59c7f98541551f6c6b5ecf89c336272e96323094b7eb5fe20cf966f94c307aab6d303f138c82500",
+            ),
+            (
+                "text-message",
+                "020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202",
+                b"Core Ed448 compatibility test message",
+                "2175036838bce81b72161107af10e67a39ea968ca6edfc0a1a074c3d14ae69bb7a446ca6b3c5a54727957f2bca8f2738cd8efd6a9645385500af3d2fcb330cb40e0d0252274d39c298e7c01e05cf46630872f133b99787c9069ee93dc30ec9d699e859c0cd20b7bf964aae6fa690d8713d00",
+            ),
+        ];
+
+        for (name, nonce, message, signature) in vectors {
+            let got_sig = sign_with_secret_and_nonce(&secret, &hex_to_private_key(nonce), message);
+            assert_eq!(got_sig, hex_to_signature(signature), "{name}");
+        }
+    }
+
+    #[test]
+    pub fn test_negative_verify_vectors() {
+        let pubkey = hex_to_private_key("18d0a70e42a742dfb561279893385061d7b4dad8f6feed4791eaab66b2f4a4f02fc09462a8bfb1842d0bac60e8a1b3e55ba2407f33226f3800");
+        let other_pubkey = hex_to_private_key("e0758a33267939a394fb5ccb202ee851cebc2e89c91ac1289e2bfcddfd9ff9fc5694b0f569d7f7e9da16e1cde9301b29f48128b3cbd1168580");
+        let signature = hex_to_signature("cb682b115cf0f0b0cf2a068acba2d0495714f2a50832739af364191c611f6983890ee133a4bf75ed2d09adc5d70f6d256b0806f3224b35d7802748b7cf55f5e9583df9f8c85db809f4877191c99ed0670ad62f54d63d7d35fddfd85efbad63554ff3ce9b847607b2f79181020880f13c1b00");
+        let mut mutated_r = signature;
+        mutated_r[0] ^= 0x01;
+        let mut mutated_s = signature;
+        mutated_s[57] ^= 0x01;
+        let mut invalid_r = signature;
+        invalid_r[..57].fill(0xff);
+        let mut non_canonical_r = signature;
+        non_canonical_r[..57].copy_from_slice(&non_canonical_ed448_encoding_p());
+        let zero_pubkey: PublicKey = [0; 57];
+        let zero_signature = [0; 114];
+        let invalid_pubkey: PublicKey = [0xff; 57];
+        let non_canonical_pubkey = non_canonical_ed448_encoding_p();
+
+        let vectors: [(&str, PublicKey, [u8; 114], &[u8]); 11] = [
+            ("wrong-message", pubkey, signature, &[0]),
+            ("wrong-public-key", other_pubkey, signature, b""),
+            ("mutated-r", pubkey, mutated_r, b""),
+            ("mutated-s", pubkey, mutated_s, b""),
+            ("zero-public-key", zero_pubkey, signature, b""),
+            ("zero-signature", pubkey, zero_signature, b""),
+            (
+                "zero-public-key-and-signature",
+                zero_pubkey,
+                zero_signature,
+                b"",
+            ),
+            ("invalid-public-key", invalid_pubkey, signature, b""),
+            ("invalid-r", pubkey, invalid_r, b""),
+            (
+                "non-canonical-public-key-y-ge-p",
+                non_canonical_pubkey,
+                signature,
+                b"",
+            ),
+            ("non-canonical-r-y-ge-p", pubkey, non_canonical_r, b""),
+        ];
+
+        for (name, public, sig, message) in vectors {
+            assert_ne!(ed448_verify(&public, &sig, message), Ok(true), "{name}");
+        }
+    }
+
+    #[test]
+    pub fn test_ed448_verify_rejects_non_canonical_r_extra_bit() {
+        let public = hex_to_private_key("3d4012b96522a8d939d1d60d24c667ba76b73d0921f7b6417a6fded1aa1d6d8c53c60b9236a5939dd241e93cd51ea4a8c8d931dd9b63c13100");
+        let signature = hex_to_signature("92a7e08f86b25f288eb0308f3fb780950ab77c333d5d1b91b6de40a199fc028fe66a001dc09341905a58f8c3d4a959ee5d416735f59d91640168fdb4d8ddf19127e015e2db7f3485c0652652f579a8203e37059cafd3c20b61d94d5f0c960805a93c72658dd679c0ace427f431087aa00300");
+        let message = b"The quick brown fox jumps over the lazy dog";
+
+        assert_ne!(ed448_verify(&public, &signature, message), Ok(true));
+    }
+
+    #[test]
+    pub fn test_ed448_verify_identity_a_r_zero_s() {
+        let mut public = [0; 57];
+        public[0] = 1;
+        let mut signature = [0; 114];
+        signature[0] = 1;
+
+        assert_ne!(ed448_verify(&public, &signature, b""), Ok(true));
+    }
+
+    #[test]
+    pub fn test_ed448_verify_accepts_small_order_a_r_zero_s() {
+        let mut public = [0; 57];
+        public[56] = 0x80;
+        let mut signature = [0; 114];
+        signature[56] = 0x80;
+
+        assert_eq!(ed448_verify(&public, &signature, b"").unwrap(), true);
+    }
+
+    #[test]
+    pub fn test_ed448_verify_panics_on_wrong_signature_length() {
+        let public = hex_to_private_key("18d0a70e42a742dfb561279893385061d7b4dad8f6feed4791eaab66b2f4a4f02fc09462a8bfb1842d0bac60e8a1b3e55ba2407f33226f3800");
+        let signature = hex_to_signature("cb682b115cf0f0b0cf2a068acba2d0495714f2a50832739af364191c611f6983890ee133a4bf75ed2d09adc5d70f6d256b0806f3224b35d7802748b7cf55f5e9583df9f8c85db809f4877191c99ed0670ad62f54d63d7d35fddfd85efbad63554ff3ce9b847607b2f79181020880f13c1b00");
+
+        assert!(
+            std::panic::catch_unwind(|| ed448_verify(&public, &signature[..113], b"")).is_err()
+        );
+        assert!(std::panic::catch_unwind(|| {
+            let mut long_signature = signature.to_vec();
+            long_signature.push(0);
+            ed448_verify(&public, &long_signature, b"")
+        })
+        .is_err());
+    }
+
+    #[test]
+    pub fn test_add_two_public_vectors() {
+        let vectors = [
+            (
+                "existing-wrapper-vector",
+                "5475efbfc0fa155f3fd80a8c183260eef996532fd084899e32df9cb8db9eb34410d2ea0d4f8b273fbd79c3276b50b70fea40732ad88f45de00",
+                "d666091b1b3836d082d349e66521878cf7afc734329d5d132d8ebd06bebf6514aaad5794dbafed3fd6aa1c5d59d5db914e8460041ff3db6280",
+                "6af04e1137833cbf82878fcdcd8310851fe582320690990a7497de63389311588d4c0d4d6fce79d07958824e54ef11fabd23b815c81e79ea80",
+            ),
+            (
+                "three-four",
+                "18e2f925aef56fc05910474593ee84c932bc7ea4d352a3416f72d115e60eb58cd862f73ac50886fbaad6354a4eeb01fd9f740491fb11f59580",
+                "4e15975a78604b2d6575f2d3310ca4e4f122226189f5900f744c1ead49408bdf8247843c05ba24fbb26c9b5f81c287cbbe3d3e8a3ad0231d00",
+                "6e99288aed0db282ae0e8d8fe03b9dc084eb201c0d6e143def07ea02d7ada39d0ae4ecea04ec451910a4c5fb2695dd1c224b0ba507b986c180",
+            ),
+            (
+                "four-five",
+                "4e15975a78604b2d6575f2d3310ca4e4f122226189f5900f744c1ead49408bdf8247843c05ba24fbb26c9b5f81c287cbbe3d3e8a3ad0231d00",
+                "f4c0eecfc7f17d960823180420fb8074d882317a39a719480d3ba6e7f565fc518a4ff54ef7dca5df5de9bb3740384c84ecac265c81398c3400",
+                "1ef1b114f0a020826789550fe32e0922d367687653aa3e4a5f32363b2ed25a3bc338d9758512c6d8e7e7d53a11005bba5db96e1fa4fe9acb80",
+            ),
+        ];
+
+        for (name, public1, public2, expected) in vectors {
+            let public1 = hex_to_private_key(public1);
+            let public2 = hex_to_private_key(public2);
+            let expected = hex_to_private_key(expected);
+            let got = add_two_public(&public1, &public2).unwrap();
+
+            assert_eq!(got, expected, "{name}");
+        }
+    }
+
+    #[test]
+    pub fn test_add_two_public_rejects_invalid_public_key() {
+        let public = hex_to_private_key("18d0a70e42a742dfb561279893385061d7b4dad8f6feed4791eaab66b2f4a4f02fc09462a8bfb1842d0bac60e8a1b3e55ba2407f33226f3800");
+        let invalid_public = [0xff; 57];
+
+        assert!(add_two_public(&public, &invalid_public).is_err());
+        assert!(add_two_public(&invalid_public, &public).is_err());
+    }
+
+    #[test]
     pub fn batch_test_sign_verify() {
         let n: usize = 100;
         let fox = b"The quick brown fox jumps over the lazy dog";
@@ -316,7 +613,8 @@ mod tests {
     pub fn test_incorrect_public_key() {
         let sig = hex_to_signature("611d178b128095022653965eb0ed3bc8bbea8e7891b5a121a102a5b29bb895770d204354dbbc67c5567186f92cdb58a601397dfe0022e0ce002c1333b6829c37c732fb909501f719df200ceaaa0e0a1533dc22e4c9c999406c071fee2858bc7c76c66d113ff1ac739564d465cd541b0d1e00");
         let pk = hex_to_private_key("3761457fcdd53dba3dea5848c43aa54fe468284319f032945a3acb9bd4cd0fa7b7c901d978e9acd9eca43fa5b3c32b648c33dcc3f3169e8081");
-        let message = hex_to_message_hash("f092a4af1f2103fe7be067df44370097c444f3bf877783ba56f21cf70ba365a3");
+        let message =
+            hex_to_message_hash("f092a4af1f2103fe7be067df44370097c444f3bf877783ba56f21cf70ba365a3");
         let result = ed448_verify(&pk, &sig, &message);
         assert_eq!(result, Err(LibgoldilockErrors::DecodePubkeyError));
     }
@@ -325,9 +623,21 @@ mod tests {
     pub fn test_zero_public_and_signature() {
         let sig = hex_to_signature("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
         let pk = hex_to_private_key("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
-        let message = hex_to_message_hash("f092a4af1f2103fe7be067df44370097c444f3bf877783ba56f21cf70ba365a3");
+        let message =
+            hex_to_message_hash("f092a4af1f2103fe7be067df44370097c444f3bf877783ba56f21cf70ba365a3");
         let result = ed448_verify(&pk, &sig, &message);
         assert_eq!(result, Err(LibgoldilockErrors::InvalidSignatureError));
+    }
+
+    fn deterministic_message(length: usize, offset: usize) -> Vec<u8> {
+        (0..length).map(|i| ((i + offset) & 0xff) as u8).collect()
+    }
+
+    fn non_canonical_ed448_encoding_p() -> [u8; 57] {
+        let mut encoding = [0xff; 57];
+        encoding[28] = 0xfe;
+        encoding[56] = 0x00;
+        encoding
     }
 
     // #[test]

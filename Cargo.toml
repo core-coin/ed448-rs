@@ -9,6 +9,7 @@ license-file = "LICENSE"
 
 [dependencies]
 hex = "0.4.3"
+pbkdf2 = "0.12"
 rand = "0.8.5"
 serdect = "0.2.0"
 sha3 = "0.10.6"

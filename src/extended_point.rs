@@ -4,8 +4,8 @@ use crate::{
     bignumber::*,
     constants32::{
         BigNumber, Dword, Sword, Word, BIG_ONE, BIG_ZERO, DECAF_COMB_NUMBER, DECAF_COMB_SPACING,
-        DECAF_COMB_TEETH, DECAF_TRUE, EDWARDS_D, FIELD_BYTES, SCALAR_BITS, SCALAR_WORDS, WORD_BITS,
-        ZERO_MASK,
+        DECAF_COMB_TEETH, DECAF_TRUE, EDWARDS_D, EFF_D, FIELD_BYTES, SCALAR_BITS, SCALAR_WORDS,
+        WORD_BITS, ZERO_MASK,
     },
     decaf_combs_32::DECAF_PRECOMP_TABLE,
     decaf_wnaf_table::DECAF_WNAF_TABLE,
@@ -510,6 +510,37 @@ pub fn decaf_prepare_wnaf_table(
 
 #[allow(unused_variables)]
 #[allow(unused_assignments)]
+pub fn add_extended_to_extended(
+    q: &TwistedExtendedPoint,
+    r: &TwistedExtendedPoint,
+) -> TwistedExtendedPoint {
+    let mut p = TwistedExtendedPoint::new();
+
+    let mut b = sub(&q.y, &q.x);
+    let mut c = sub(&r.y, &r.x);
+    let d = add_raw(&r.y, &r.x);
+    let mut a = mul(&c, &b);
+    b = add_raw(&q.y, &q.x);
+    p.y = mul(&d, &b);
+    b = mul(&r.t, &q.t);
+    let double_eff_d: Dword = 2 * (EFF_D as Dword);
+    p.x = mul_w(&b, &double_eff_d);
+    b = add_raw(&a, &p.y);
+    c = sub(&p.y, &a);
+    a = mul(&q.z, &r.z);
+    a = add_raw(&a, &a);
+    p.y = add_raw(&a, &p.x);
+    a = sub(&a, &p.x);
+    p.z = mul(&a, &p.y);
+    p.x = mul(&p.y, &c);
+    p.y = mul(&a, &b);
+    p.t = mul(&b, &c);
+
+    p
+}
+
+#[allow(unused_variables)]
+#[allow(unused_assignments)]
 pub fn eddsa_like_decode(src_org: &[u8]) -> Result<TwistedExtendedPoint, LibgoldilockErrors> {
     let mut p = TwistedExtendedPoint::new();
     if src_org.len() != 57 {
@@ -521,11 +552,9 @@ pub fn eddsa_like_decode(src_org: &[u8]) -> Result<TwistedExtendedPoint, Libgold
     let low = !is_zero_mask(ZERO_MASK & (src[FIELD_BYTES] as Word));
     src[FIELD_BYTES] &= (!cofactor_mask) as u8;
 
-    // TODO: This is never used
     let mut succ = is_zero_mask(src[FIELD_BYTES] as Word);
     let succ1: u32;
     (p.y, succ1) = dsa_like_deserialize(&src, 0);
-    // TODO: No use after this
     succ &= succ1;
 
     p.x = square(&p.y);
@@ -533,7 +562,9 @@ pub fn eddsa_like_decode(src_org: &[u8]) -> Result<TwistedExtendedPoint, Libgold
     p.t = mul_with_signed_curve_constant(&p.x, &EDWARDS_D);
     p.t = sub(&BIG_ONE, &p.t);
     p.x = mul(&p.z, &p.t);
-    p.t = isr(&p.x);
+    let (isr, isr_succ) = isr_checked(&p.x);
+    p.t = isr;
+    succ &= isr_succ;
     p.x = mul(&p.t, &p.z);
     p.x = decaf_cond_negate(&p.x, &(!(low_bit(&p.x)) ^ low));
     p.z = BIG_ONE;
