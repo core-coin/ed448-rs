@@ -1,7 +1,7 @@
 use crate::{
     constants32::{
-        BigNumber, Dword, Sdword, Serialized, Word, BIG_ZERO, FIELD_BYTES, LMASK, MODULUS, N_LIMBS,
-        RADIX, RADIX_MASK, WORD_BITS,
+        BigNumber, Dword, Sdword, Serialized, Word, BIG_ONE, BIG_ZERO, FIELD_BYTES, LMASK, MODULUS,
+        N_LIMBS, RADIX, RADIX_MASK, WORD_BITS,
     },
     karatsuba_32::karatsuba_mul,
     karatsuba_square_32::karatsuba_square,
@@ -71,6 +71,11 @@ pub fn invert(x: &BigNumber) -> BigNumber {
 
 #[allow(unused_assignments)]
 pub fn isr(x: &BigNumber) -> BigNumber {
+    isr_checked(x).0
+}
+
+#[allow(unused_assignments)]
+pub fn isr_checked(x: &BigNumber) -> (BigNumber, Word) {
     let mut l1 = square(x);
     let mut l2 = mul(x, &l1);
     l1 = square(&l2);
@@ -97,9 +102,8 @@ pub fn isr(x: &BigNumber) -> BigNumber {
     l1 = mul(&l2, &l0);
     l2 = square(&l1);
     l0 = mul(&l2, x);
-    // Is this correctly returning l1?
 
-    l1
+    (l1, decaf_equal(&l0, &BIG_ONE))
 }
 
 pub fn square_n(x: &BigNumber, mut y: usize) -> BigNumber {
@@ -660,7 +664,7 @@ pub fn dsa_like_serialize(n: &BigNumber) -> [u8; FIELD_BYTES] {
 
 #[cfg(test)]
 mod tests {
-    use crate::constants32::{BIG_ONE, BIG_ZERO, DECAF_TRUE, EDWARDS_D, FIELD_BYTES};
+    use crate::constants32::{BIG_ONE, BIG_ZERO, DECAF_FALSE, DECAF_TRUE, EDWARDS_D, FIELD_BYTES};
 
     use super::*;
 
@@ -871,6 +875,19 @@ mod tests {
             233741762, 151481942, 109183904, 77807714, 38252586, 5438964, 61033406, 4204497,
         ];
         assert_eq!(x, exp);
+    }
+
+    #[test]
+    fn test_isr_checked_success_flag() {
+        let (_, zero_success) = isr_checked(&BIG_ZERO);
+        assert_eq!(zero_success, DECAF_FALSE);
+
+        let (one_isr, one_success) = isr_checked(&BIG_ONE);
+        assert_eq!(one_success, DECAF_TRUE);
+        assert_eq!(
+            decaf_equal(&mul(&square(&one_isr), &BIG_ONE), &BIG_ONE),
+            DECAF_TRUE
+        );
     }
 
     #[test]

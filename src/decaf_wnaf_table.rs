@@ -1,4 +1,4 @@
-use crate::extended_point::{TwistedNiels};
+use crate::extended_point::TwistedNiels;
 
 pub const DECAF_WNAF_TABLE: [TwistedNiels; 32] = [
     TwistedNiels {

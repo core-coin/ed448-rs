@@ -1,5 +1,6 @@
 #![allow(clippy::should_implement_trait)]
 mod bignumber;
+pub mod chaincodes;
 mod constants32;
 mod decaf_combs_32;
 mod decaf_wnaf_table;
@@ -16,6 +17,11 @@ use goldilocks::{ed448_derive_public, ed448_sign, hex_to_private_key};
 use rand::{CryptoRng, Rng};
 use serdect::serde::{de, ser, Deserialize, Serialize};
 
+/// Signs already-computed Core hash bytes using the normal Core Ed448 signing path.
+///
+/// This is a wallet/corebc compatibility API: callers pass a transaction or message hash, and
+/// those bytes are signed as the Ed448 message payload. This is not RFC8032 Ed448ph and does not set
+/// the Ed448 prehash domain flag.
 pub trait PrehashSigner<S> {
     fn sign_prehash(&self, prehash: &[u8]) -> Result<S, LibgoldilockErrors>;
 }
@@ -150,6 +156,8 @@ impl SigningKey {
 
 impl PrehashSigner<Signature> for SigningKey {
     fn sign_prehash(&self, prehash: &[u8]) -> Result<Signature, LibgoldilockErrors> {
+        // `prehash` is signed as ordinary message bytes. This intentionally matches corebc's
+        // wallet contract and is not RFC8032 Ed448ph.
         let sig = ed448_sign(&self.secret_key.key, prehash);
         let mut sig_with_private_key: [u8; 171] = [0; 171];
         sig_with_private_key[0..114].copy_from_slice(&sig);
@@ -239,8 +247,11 @@ impl<'de> Deserialize<'de> for VerifyingKey {
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use crate::{SecretKey, SigningKey, VerifyingKey};
+    use crate::{
+        goldilocks::ed448_verify_with_error, PrehashSigner, SecretKey, SigningKey, VerifyingKey,
+    };
 
     #[test]
     fn test_secret_key_serde() {
@@ -285,5 +296,27 @@ mod tests {
     fn test_verifying_key_from_bytes() {
         let key = VerifyingKey::from_bytes(&[1; 57]);
         assert_eq!(key.key, [1; 57]);
+    }
+
+    #[test]
+    fn test_sign_prehash_corebc_contract() {
+        let key = SigningKey::from_str("010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101");
+        let prehash = [
+            0x9a, 0x7f, 0x38, 0x42, 0x18, 0x86, 0x1d, 0xd4, 0x3e, 0xa9, 0x79, 0x71, 0x36, 0x5a,
+            0x13, 0x2c, 0x1b, 0xf4, 0xd8, 0xa1, 0x9c, 0x56, 0xef, 0x0b, 0x80, 0x2d, 0x24, 0x11,
+            0xa2, 0x75, 0xe4, 0x8c,
+        ];
+
+        let signature = key.sign_prehash(&prehash).unwrap();
+        let sig_with_pub = signature.as_slice();
+
+        assert_eq!(sig_with_pub.len(), 171);
+        assert_eq!(&sig_with_pub[114..171], key.verifying_key().as_bytes());
+        assert!(ed448_verify_with_error(
+            key.verifying_key().as_bytes(),
+            &sig_with_pub[0..114],
+            &prehash
+        )
+        .is_ok());
     }
 }

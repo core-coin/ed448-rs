@@ -14,6 +14,9 @@ pub enum LibgoldilockErrors {
     #[error("InvalidLengthError")]
     InvalidLengthError,
 
+    #[error("InvalidChildIndexError")]
+    InvalidChildIndexError,
+
     #[error("Invalid PrivateKey Length, expected: 57 bytes, got: {0} bytes")]
     InvalidPrivKeyLengthErrro(usize),
 
